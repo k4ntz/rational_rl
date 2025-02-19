@@ -4,6 +4,7 @@ import math
 import torch
 from torch import nn
 from torch.nn import functional as F
+from activations.torch import Rational
 
 
 # Factorised NoisyLinear layer with bias
@@ -51,15 +52,35 @@ class DQN(nn.Module):
     super(DQN, self).__init__()
     self.atoms = args.atoms
     self.action_space = action_space
+    if args.act_f == 'relu':
+      self.act_f1 = nn.ReLU()
+      self.act_f2 = self.act_f1
+      self.act_f3 = self.act_f1
+      self.act_f4 = self.act_f1
+      self.act_f5 = self.act_f1
+    elif args.act_f == 'rat':
+      self.act_f1 = Rational()
+      self.act_f2 = Rational()
+      self.act_f3 = Rational()
+      self.act_f4 = Rational()
+      self.act_f5 = Rational()
+    elif args.act_f == 'recrat':
+      self.act_f1 = Rational()
+      self.act_f2 = self.act_f1
+      self.act_f3 = self.act_f1
+      self.act_f4 = self.act_f1
+      self.act_f5 = self.act_f1
+    else:
+      raise ValueError('Invalid activation function')
 
     if args.architecture == 'canonical':
-      self.convs = nn.Sequential(nn.Conv2d(args.history_length, 32, 8, stride=4, padding=0), nn.ReLU(),
-                                 nn.Conv2d(32, 64, 4, stride=2, padding=0), nn.ReLU(),
-                                 nn.Conv2d(64, 64, 3, stride=1, padding=0), nn.ReLU())
+      self.convs = nn.Sequential(nn.Conv2d(args.history_length, 32, 8, stride=4, padding=0), self.act_f1,
+                                 nn.Conv2d(32, 64, 4, stride=2, padding=0), self.act_f2,
+                                 nn.Conv2d(64, 64, 3, stride=1, padding=0), self.act_f3)
       self.conv_output_size = 3136
     elif args.architecture == 'data-efficient':
-      self.convs = nn.Sequential(nn.Conv2d(args.history_length, 32, 5, stride=5, padding=0), nn.ReLU(),
-                                 nn.Conv2d(32, 64, 5, stride=5, padding=0), nn.ReLU())
+      self.convs = nn.Sequential(nn.Conv2d(args.history_length, 32, 5, stride=5, padding=0), self.act_f1,
+                                 nn.Conv2d(32, 64, 5, stride=5, padding=0), self.act_f2)
       self.conv_output_size = 576
     self.fc_h_v = NoisyLinear(self.conv_output_size, args.hidden_size, std_init=args.noisy_std)
     self.fc_h_a = NoisyLinear(self.conv_output_size, args.hidden_size, std_init=args.noisy_std)
@@ -69,8 +90,8 @@ class DQN(nn.Module):
   def forward(self, x, log=False):
     x = self.convs(x)
     x = x.view(-1, self.conv_output_size)
-    v = self.fc_z_v(F.relu(self.fc_h_v(x)))  # Value stream
-    a = self.fc_z_a(F.relu(self.fc_h_a(x)))  # Advantage stream
+    v = self.fc_z_v(self.act_f4(self.fc_h_v(x)))  # Value stream
+    a = self.fc_z_a(self.act_f5(self.fc_h_a(x)))  # Advantage stream
     v, a = v.view(-1, 1, self.atoms), a.view(-1, self.action_space, self.atoms)
     q = v + a - a.mean(1, keepdim=True)  # Combine streams
     if log:  # Use log softmax for numerical stability
