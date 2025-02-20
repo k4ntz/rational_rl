@@ -22,7 +22,10 @@ from parsers import parser
 # Setup
 args = parser.parse_args()
 
-
+torch.set_num_threads(4)
+os.environ["OMP_NUM_THREADS"] = "4"
+os.environ["MKL_NUM_THREADS"] = "4"
+os.environ["OPENBLAS_NUM_THREADS"] = "4"
 
 # Initialize TensorBoard writer
 log_dir = os.path.join("logs", args.game)
